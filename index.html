@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Escalation Dashboard — Carrybee Express</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #1C1B18;
+    --surface: #242220;
+    --surface-2: #2E2B26;
+    --border: #3D3A32;
+    --text: #F2EDE4;
+    --text-dim: #ABA495;
+    --text-faint: #766F60;
+    --accent: #E08A3E;
+    --accent-soft: #E08A3E22;
+    --red: #C4544A;
+    --red-soft: #C4544A22;
+    --green: #7A9B6E;
+    --green-soft: #7A9B6E22;
+    --gold: #D9B34E;
+    --gold-soft: #D9B34E22;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1080px;margin:0 auto;padding:28px 20px 80px;}
+  header.top{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;border-bottom:1px solid var(--border);padding-bottom:20px;margin-bottom:24px;}
+  .eyebrow{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.04em;color:var(--accent);}
+  h1{font-family:'Fraunces',serif;font-weight:500;font-size:32px;margin:6px 0 0;letter-spacing:-.01em;}
+
+  .stat-strip{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:22px;}
+  .stat{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 16px 14px;}
+  .stat .n{font-family:'Fraunces',serif;font-size:28px;font-weight:500;}
+  .stat .l{font-size:11.5px;color:var(--text-dim);margin-top:2px;}
+  .stat.open .n{color:var(--red);}
+  .stat.progress .n{color:var(--gold);}
+  .stat.escalated .n{color:var(--accent);}
+  .stat.resolved .n{color:var(--green);}
+
+  .panel{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px;margin-bottom:20px;}
+  .panel h2{font-family:'Fraunces',serif;font-size:17px;font-weight:500;margin:0 0 16px;}
+  .filter-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
+  .filter-row select, .filter-row input[type=text]{
+    padding:8px 10px;font-size:13px;background:var(--surface-2);border:1px solid var(--border);
+    color:var(--text);border-radius:8px;font-family:'Inter',sans-serif;
+  }
+  select{appearance:none;-webkit-appearance:none;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23ABA495'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;background-position:right 10px center;padding-right:28px;
+  }
+  .filter-row input[type=text]{min-width:200px;}
+  .filter-row .spacer{flex:1;}
+  button.ghost{
+    background:transparent;border:1px solid var(--border);color:var(--text-dim);
+    font-family:'Inter',sans-serif;font-weight:600;font-size:13px;padding:11px 18px;
+    border-radius:8px;cursor:pointer;
+  }
+  button.ghost:hover{color:var(--text);border-color:var(--text-dim);}
+
+  .bar-row{display:grid;grid-template-columns:180px 1fr 34px;align-items:center;gap:10px;font-size:12.5px;margin-bottom:9px;}
+  .bar-row .lbl{color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .bar-track{background:var(--surface-2);border-radius:5px;height:9px;overflow:hidden;}
+  .bar-fill{background:var(--accent);height:100%;border-radius:5px;}
+  .bar-row .cnt{text-align:right;color:var(--text-faint);font-family:'IBM Plex Mono',monospace;font-size:11.5px;}
+
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  thead th{text-align:left;color:var(--text-faint);font-weight:600;font-size:11px;border-bottom:1px solid var(--border);padding:0 10px 10px;}
+  tbody td{padding:12px 10px;border-bottom:1px solid var(--border);vertical-align:top;}
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr:hover{background:var(--surface-2);}
+  .mono{font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--text-dim);}
+  .badge{display:inline-block;padding:3px 9px;border-radius:999px;font-size:11px;font-weight:600;}
+  .badge.open{background:var(--red-soft);color:var(--red);}
+  .badge.progress{background:var(--gold-soft);color:var(--gold);}
+  .badge.escalated{background:var(--accent-soft);color:var(--accent);}
+  .badge.resolved{background:var(--green-soft);color:var(--green);}
+  .details-cell{max-width:220px;}
+  .details-text{color:var(--text-dim);cursor:pointer;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+  .details-text.expanded{-webkit-line-clamp:unset;}
+  .empty-state{padding:40px 10px;text-align:center;color:var(--text-faint);font-size:13.5px;}
+  .table-scroll{overflow-x:auto;}
+
+  @media (max-width:720px){ .stat-strip{grid-template-columns:repeat(2,1fr);} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <span class="eyebrow">CARRYBEE EXPRESS</span>
+      <h1>Escalation Dashboard</h1>
+    </div>
+  </header>
+
+  <div class="stat-strip" id="statStrip"></div>
+
+  <div class="panel">
+    <h2>Filter</h2>
+    <div class="filter-row">
+      <select id="ff-channel"><option value="">All channels</option></select>
+      <select id="ff-zone"><option value="">All zones</option></select>
+      <select id="ff-category"><option value="">All categories</option></select>
+      <select id="ff-status"><option value="">All statuses</option></select>
+      <input type="text" id="ff-search" placeholder="Search consignment / merchant / hub">
+      <div class="spacer"></div>
+      <button class="ghost" id="btnRefresh">Refresh</button>
+      <button class="ghost" id="btnExport">Export CSV</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Issues by category</h2>
+    <div id="categoryBars"></div>
+  </div>
+
+  <div class="panel">
+    <h2>Escalation log</h2>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Logged</th><th>Consignment / Merchant</th><th>Channel</th><th>Zone</th>
+            <th>Hub</th><th>Category</th><th>Subcategory</th><th>Status</th><th>Details</th>
+          </tr>
+        </thead>
+        <tbody id="issueTableBody"></tbody>
+      </table>
+    </div>
+    <div id="emptyState" class="empty-state" style="display:none;">No issues match this filter yet — or none have been logged on the form artifact.</div>
+  </div>
+</div>
+
+<script>
+  const STORAGE_KEY = 'escalation-issues';
+
+  const CATEGORY_MAP = {
+    "Delivery Delay": [],"Payment Issue": [],"Pickup": [],"Return Delay": [],"Return Exchange": [],
+    "Reverse Pickup": [],"Charge Extra/Wrong COD": [],"Damage": [],"No Entry/Cancelled": [],
+    "Unprofessionalism": [],"Wrong Routing": [],"Wrong Tag/Parcel Swapped": [],
+    "Breach of CLOSEBOX": [],"Urgent Delivery": []
+  };
+
+  const $ = (id) => document.getElementById(id);
+  const statusClass = (s) => s === 'Open' ? 'open' : s === 'In Progress' ? 'progress' : s === 'Escalated' ? 'escalated' : 'resolved';
+
+  const ffCategory = $('ff-category');
+  Object.keys(CATEGORY_MAP).forEach(cat=>{
+    const o=document.createElement('option'); o.value=cat; o.textContent=cat;
+    ffCategory.appendChild(o);
+  });
+  ['KAM','Contact center','FB','OPS','HUB','Merchant panel'].forEach(c=>{
+    const o=document.createElement('option'); o.value=c; o.textContent=c;
+    $('ff-channel').appendChild(o);
+  });
+  ['ISD','OSD','SUB','Central Sort'].forEach(z=>{
+    const o=document.createElement('option'); o.value=z; o.textContent=z;
+    $('ff-zone').appendChild(o);
+  });
+  ['Open','In Progress','Escalated','Resolved'].forEach(s=>{
+    const o=document.createElement('option'); o.value=s; o.textContent=s;
+    $('ff-status').appendChild(o);
+  });
+
+  async function loadIssues(){
+    try{
+      const res = await window.storage.get(STORAGE_KEY, true);
+      if(!res || !res.value) return [];
+      return JSON.parse(res.value);
+    }catch(e){
+      return [];
+    }
+  }
+
+  let allIssues = [];
+
+  async function loadAndRenderDashboard(){
+    allIssues = await loadIssues();
+    renderDashboard();
+  }
+
+  function currentFilters(){
+    return {
+      channel: $('ff-channel').value,
+      zone: $('ff-zone').value,
+      category: $('ff-category').value,
+      status: $('ff-status').value,
+      search: $('ff-search').value.trim().toLowerCase()
+    };
+  }
+
+  function applyFilters(list){
+    const f = currentFilters();
+    return list.filter(i=>{
+      if(f.channel && i.channel!==f.channel) return false;
+      if(f.zone && i.zone!==f.zone) return false;
+      if(f.category && i.category!==f.category) return false;
+      if(f.status && i.status!==f.status) return false;
+      if(f.search){
+        const hay = (i.consignment+' '+i.hub+' '+i.details).toLowerCase();
+        if(!hay.includes(f.search)) return false;
+      }
+      return true;
+    });
+  }
+
+  function renderStats(list){
+    const counts = {Open:0,'In Progress':0,Escalated:0,Resolved:0};
+    list.forEach(i=>{ if(counts[i.status]!==undefined) counts[i.status]++; });
+    $('statStrip').innerHTML = `
+      <div class="stat"><div class="n">${list.length}</div><div class="l">Total logged</div></div>
+      <div class="stat open"><div class="n">${counts.Open}</div><div class="l">Open</div></div>
+      <div class="stat progress"><div class="n">${counts['In Progress']}</div><div class="l">In progress</div></div>
+      <div class="stat escalated"><div class="n">${counts.Escalated}</div><div class="l">Escalated</div></div>
+      <div class="stat resolved"><div class="n">${counts.Resolved}</div><div class="l">Resolved</div></div>
+    `;
+  }
+
+  function renderBars(list){
+    const counts = {};
+    Object.keys(CATEGORY_MAP).forEach(c=>counts[c]=0);
+    list.forEach(i=>{ if(counts[i.category]!==undefined) counts[i.category]++; });
+    const max = Math.max(1, ...Object.values(counts));
+    const el = $('categoryBars');
+    el.innerHTML = '';
+    Object.entries(counts).sort((a,b)=>b[1]-a[1]).forEach(([cat,n])=>{
+      const row = document.createElement('div');
+      row.className='bar-row';
+      row.innerHTML = `<div class="lbl">${cat}</div>
+        <div class="bar-track"><div class="bar-fill" style="width:${(n/max*100)}%"></div></div>
+        <div class="cnt">${n}</div>`;
+      el.appendChild(row);
+    });
+  }
+
+  function fmtTime(iso){
+    const d = new Date(iso);
+    return d.toLocaleString('en-GB', {day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+  }
+
+  function escapeHtml(s){
+    return (s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  function renderTable(list){
+    const body = $('issueTableBody');
+    body.innerHTML='';
+    const sorted = [...list].sort((a,b)=> new Date(b.ts)-new Date(a.ts));
+    $('emptyState').style.display = sorted.length ? 'none' : 'block';
+    sorted.forEach(i=>{
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="mono">${fmtTime(i.ts)}</td>
+        <td>${escapeHtml(i.consignment)}</td>
+        <td>${escapeHtml(i.channel)}</td>
+        <td>${escapeHtml(i.zone)}</td>
+        <td>${escapeHtml(i.hub || '—')}</td>
+        <td>${escapeHtml(i.category)}</td>
+        <td>${escapeHtml(i.subcategory)}</td>
+        <td><span class="badge ${statusClass(i.status)}">${escapeHtml(i.status)}</span></td>
+        <td class="details-cell"><div class="details-text">${escapeHtml(i.details)}</div></td>
+      `;
+      tr.querySelector('.details-text').addEventListener('click', (e)=>{
+        e.target.classList.toggle('expanded');
+      });
+      body.appendChild(tr);
+    });
+  }
+
+  function renderDashboard(){
+    const filtered = applyFilters(allIssues);
+    renderStats(filtered);
+    renderBars(filtered);
+    renderTable(filtered);
+  }
+
+  ['ff-channel','ff-zone','ff-category','ff-status'].forEach(id=>{
+    $(id).addEventListener('change', renderDashboard);
+  });
+  $('ff-search').addEventListener('input', renderDashboard);
+  $('btnRefresh').addEventListener('click', loadAndRenderDashboard);
+
+  $('btnExport').addEventListener('click', ()=>{
+    const filtered = applyFilters(allIssues);
+    const headers = ['Logged','Consignment/Merchant','Channel','Zone','Hub','Category','Subcategory','Issue Status','Details'];
+    const rows = filtered.map(i=>[
+      fmtTime(i.ts), i.consignment, i.channel, i.zone, i.hub, i.category, i.subcategory, i.status, i.details
+    ]);
+    const csv = [headers, ...rows].map(r=>
+      r.map(v=>`"${(v||'').toString().replace(/"/g,'""')}"`).join(',')
+    ).join('\n');
+    const blob = new Blob([csv], {type:'text/csv'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'escalation-issues.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  loadAndRenderDashboard();
+</script>
+</body>
+</html>

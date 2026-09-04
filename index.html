@@ -102,6 +102,9 @@
   .session-row{display:flex;justify-content:flex-end;align-items:center;gap:12px;margin-bottom:16px;font-size:12.5px;color:var(--text-faint);}
   .session-row button.link{background:none;border:none;color:var(--accent);font-family:'Inter',sans-serif;font-weight:600;font-size:12.5px;cursor:pointer;padding:0;}
 
+  .hub-link{cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-decoration-color:var(--text-faint);}
+  .hub-contacts{margin-top:6px;font-size:11.5px;color:var(--text-dim);background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;line-height:1.6;}
+
   @media (max-width:720px){ .stat-strip{grid-template-columns:repeat(2,1fr);} }
 </style>
 </head>
@@ -164,7 +167,7 @@
         <thead>
           <tr>
             <th>Logged</th><th>Consignment / Merchant</th><th>Channel</th><th>Zone</th>
-            <th>Hub</th><th>Category</th><th>Subcategory</th><th>Status</th><th>Logged by</th><th>Details</th>
+            <th>Hub</th><th>Category</th><th>Subcategory</th><th>Status</th><th>Logged by</th><th>Remarks</th><th>Details</th>
           </tr>
         </thead>
         <tbody id="issueTableBody"></tbody>
@@ -209,15 +212,18 @@
     $('ff-status').appendChild(o);
   });
 
+  async function authedFetch(path, opts={}){
+    const res = await fetch(`${API_BASE}${path}`, {
+      ...opts,
+      headers: { 'Authorization': `Bearer ${authToken}`, ...(opts.headers||{}) }
+    });
+    if(res.status === 401){ doLogout(); throw new Error('Session expired'); }
+    return res;
+  }
+
   async function loadIssues(){
     try{
-      const res = await fetch(`${API_BASE}/api/issues`, {
-        headers: { 'Authorization': `Bearer ${authToken}` }
-      });
-      if(res.status === 401){
-        doLogout();
-        return [];
-      }
+      const res = await authedFetch('/api/issues');
       if(!res.ok) return [];
       return await res.json();
     }catch(e){
@@ -339,6 +345,32 @@
     return (s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   }
 
+  const hubContactsCache = {};
+
+  async function toggleHubContacts(cell, hub){
+    const box = cell.querySelector('.hub-contacts');
+    if(box.style.display === 'block'){ box.style.display = 'none'; return; }
+    box.style.display = 'block';
+    if(hubContactsCache[hub]){
+      box.innerHTML = hubContactsCache[hub];
+      return;
+    }
+    box.innerHTML = '<span style="color:var(--text-faint);">Loading…</span>';
+    try{
+      const res = await authedFetch(`/api/hub-assignments/${encodeURIComponent(hub)}`);
+      const info = await res.json();
+      const html = info ? `
+        <div>Ops: ${escapeHtml(info.ops_manager_name || '—')}</div>
+        <div>Regional: ${escapeHtml(info.regional_manager_name || '—')}</div>
+        <div>Cluster Lead: ${escapeHtml(info.cluster_lead_name || '—')}</div>
+      ` : '<span style="color:var(--text-faint);">No assignment on file</span>';
+      hubContactsCache[hub] = html;
+      box.innerHTML = html;
+    }catch(err){
+      box.innerHTML = '<span style="color:var(--red);">Could not load</span>';
+    }
+  }
+
   function renderTable(list){
     const body = $('issueTableBody');
     body.innerHTML='';
@@ -351,16 +383,24 @@
         <td>${escapeHtml(i.consignment)}</td>
         <td>${escapeHtml(i.channel)}</td>
         <td>${escapeHtml(i.zone)}</td>
-        <td>${escapeHtml(i.hub || '—')}</td>
+        <td class="hub-cell" data-hub="${escapeHtml(i.hub||'')}">
+          <span class="hub-link">${escapeHtml(i.hub || '—')}</span>
+          <div class="hub-contacts" style="display:none;"></div>
+        </td>
         <td>${escapeHtml(i.category)}</td>
         <td>${escapeHtml(i.subcategory)}</td>
         <td><span class="badge ${statusClass(i.status)}">${escapeHtml(i.status)}</span></td>
         <td>${escapeHtml(i.logged_by_name || i.logged_by)}</td>
+        <td class="details-cell"><div class="details-text">${escapeHtml(i.remarks || '—')}</div></td>
         <td class="details-cell"><div class="details-text">${escapeHtml(i.details)}</div></td>
       `;
       tr.querySelector('.details-text').addEventListener('click', (e)=>{
         e.target.classList.toggle('expanded');
       });
+      const hubCell = tr.querySelector('.hub-cell');
+      if(i.hub){
+        hubCell.querySelector('.hub-link').addEventListener('click', ()=> toggleHubContacts(hubCell, i.hub));
+      }
       body.appendChild(tr);
     });
   }
@@ -380,9 +420,9 @@
 
   $('btnExport').addEventListener('click', ()=>{
     const filtered = applyFilters(allIssues);
-    const headers = ['Logged','Consignment/Merchant','Channel','Zone','Hub','Category','Subcategory','Issue Status','Logged By','Details'];
+    const headers = ['Logged','Consignment/Merchant','Channel','Zone','Hub','Category','Subcategory','Issue Status','Logged By','Remarks','Details'];
     const rows = filtered.map(i=>[
-      fmtTime(i.ts), i.consignment, i.channel, i.zone, i.hub, i.category, i.subcategory, i.status, (i.logged_by_name || i.logged_by), i.details
+      fmtTime(i.ts), i.consignment, i.channel, i.zone, i.hub, i.category, i.subcategory, i.status, (i.logged_by_name || i.logged_by), (i.remarks || ''), i.details
     ]);
     const csv = [headers, ...rows].map(r=>
       r.map(v=>`"${(v||'').toString().replace(/"/g,'""')}"`).join(',')

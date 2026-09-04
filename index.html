@@ -164,7 +164,7 @@
         <thead>
           <tr>
             <th>Logged</th><th>Consignment / Merchant</th><th>Channel</th><th>Zone</th>
-            <th>Hub</th><th>Category</th><th>Subcategory</th><th>Status</th><th>Details</th>
+            <th>Hub</th><th>Category</th><th>Subcategory</th><th>Status</th><th>Logged by</th><th>Details</th>
           </tr>
         </thead>
         <tbody id="issueTableBody"></tbody>
@@ -355,6 +355,7 @@
         <td>${escapeHtml(i.category)}</td>
         <td>${escapeHtml(i.subcategory)}</td>
         <td><span class="badge ${statusClass(i.status)}">${escapeHtml(i.status)}</span></td>
+        <td>${escapeHtml(i.logged_by_name || i.logged_by)}</td>
         <td class="details-cell"><div class="details-text">${escapeHtml(i.details)}</div></td>
       `;
       tr.querySelector('.details-text').addEventListener('click', (e)=>{
@@ -379,9 +380,9 @@
 
   $('btnExport').addEventListener('click', ()=>{
     const filtered = applyFilters(allIssues);
-    const headers = ['Logged','Consignment/Merchant','Channel','Zone','Hub','Category','Subcategory','Issue Status','Details'];
+    const headers = ['Logged','Consignment/Merchant','Channel','Zone','Hub','Category','Subcategory','Issue Status','Logged By','Details'];
     const rows = filtered.map(i=>[
-      fmtTime(i.ts), i.consignment, i.channel, i.zone, i.hub, i.category, i.subcategory, i.status, i.details
+      fmtTime(i.ts), i.consignment, i.channel, i.zone, i.hub, i.category, i.subcategory, i.status, (i.logged_by_name || i.logged_by), i.details
     ]);
     const csv = [headers, ...rows].map(r=>
       r.map(v=>`"${(v||'').toString().replace(/"/g,'""')}"`).join(',')

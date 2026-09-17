@@ -161,6 +161,36 @@
   .perf-toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:18px;}
   .perf-toolbar select{width:auto;min-width:190px;}
 
+  .csel{position:relative;display:inline-flex;}
+  .csel select{display:none;}
+  .csel-trigger{
+    display:flex;align-items:center;justify-content:space-between;gap:10px;
+    padding:8px 10px;font-size:13px;font-family:'Inter',sans-serif;font-weight:500;
+    background:var(--surface-2);border:1px solid var(--border);border-radius:8px;
+    color:var(--text);cursor:pointer;transition:border-color .15s,box-shadow .15s,background .15s;
+    white-space:nowrap;
+  }
+  .csel-trigger:hover{border-color:var(--accent);background:var(--surface);}
+  .csel-trigger.open{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);background:var(--surface);}
+  .csel-trigger::after{
+    content:'';width:7px;height:7px;flex-shrink:0;margin-top:-3px;
+    border-right:2px solid var(--text-faint);border-bottom:2px solid var(--text-faint);
+    transform:rotate(45deg);transition:transform .18s;
+  }
+  .csel-trigger.open::after{transform:rotate(-135deg);margin-top:3px;}
+  .csel-menu{
+    position:absolute;top:calc(100% + 6px);left:0;z-index:50;min-width:100%;
+    background:var(--surface);border:1px solid var(--border);border-radius:10px;
+    box-shadow:0 12px 28px rgba(0,0,0,.2);padding:5px;max-height:260px;overflow-y:auto;
+    opacity:0;transform:translateY(-6px);pointer-events:none;transition:opacity .15s,transform .15s;
+  }
+  .csel-menu.open{opacity:1;transform:translateY(0);pointer-events:auto;}
+  .csel-option{padding:8px 10px;font-size:13px;font-family:'Inter',sans-serif;border-radius:6px;cursor:pointer;color:var(--text-dim);}
+  .csel-option:hover{background:var(--surface-2);color:var(--text);}
+  .csel-option.selected{background:var(--accent-soft);color:var(--accent);font-weight:600;}
+  .perf-toolbar .csel{min-width:190px;}
+  .perf-toolbar .csel-trigger{width:100%;}
+
   /* From Uiverse.io by rishichawda */
   #theme-toggle-button{font-size:7px;position:relative;display:inline-block;width:7em;cursor:pointer;flex-shrink:0;}
   #toggle{opacity:0;width:0;height:0;}
@@ -363,6 +393,69 @@
     const o=document.createElement('option'); o.value=s; o.textContent=s;
     $('ff-status').appendChild(o);
   });
+
+  // ---------- Custom dropdown (replaces native <select> popup styling) ----------
+  document.addEventListener('click', ()=>{
+    document.querySelectorAll('.csel-menu.open').forEach(m=> m.classList.remove('open'));
+    document.querySelectorAll('.csel-trigger.open').forEach(t=> t.classList.remove('open'));
+  });
+
+  function enhanceSelect(select){
+    if(!select || select.dataset.enhanced) return;
+    select.dataset.enhanced = '1';
+
+    const wrap = document.createElement('div');
+    wrap.className = 'csel';
+    select.parentNode.insertBefore(wrap, select);
+    wrap.appendChild(select);
+
+    const trigger = document.createElement('button');
+    trigger.type = 'button';
+    trigger.className = 'csel-trigger';
+
+    const menu = document.createElement('div');
+    menu.className = 'csel-menu';
+
+    wrap.appendChild(trigger);
+    wrap.appendChild(menu);
+
+    function closeMenu(){ menu.classList.remove('open'); trigger.classList.remove('open'); }
+
+    function buildMenu(){
+      menu.innerHTML = '';
+      Array.from(select.options).forEach((opt, idx)=>{
+        const item = document.createElement('div');
+        item.className = 'csel-option' + (idx === select.selectedIndex ? ' selected' : '');
+        item.textContent = opt.textContent;
+        item.addEventListener('click', (e)=>{
+          e.stopPropagation();
+          select.selectedIndex = idx;
+          select.dispatchEvent(new Event('change', { bubbles:true }));
+          syncTrigger();
+          closeMenu();
+        });
+        menu.appendChild(item);
+      });
+    }
+
+    function syncTrigger(){
+      const opt = select.options[select.selectedIndex];
+      trigger.textContent = opt ? opt.textContent : '';
+    }
+
+    trigger.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      const willOpen = !menu.classList.contains('open');
+      document.querySelectorAll('.csel-menu.open').forEach(m=> m.classList.remove('open'));
+      document.querySelectorAll('.csel-trigger.open').forEach(t=> t.classList.remove('open'));
+      if(willOpen){ buildMenu(); menu.classList.add('open'); trigger.classList.add('open'); }
+    });
+
+    select.addEventListener('change', syncTrigger);
+    syncTrigger();
+  }
+
+  ['ff-channel','ff-zone','ff-category','ff-status'].forEach(id=> enhanceSelect($(id)));
 
   async function authedFetch(path, opts={}){
     const res = await fetch(`${API_BASE}${path}`, {
@@ -750,6 +843,7 @@
       activeKamFilter = e.target.value;
       $('kamTrendWrap').innerHTML = renderKamTrendTable(issues, activePerfPeriod, activeKamFilter);
     });
+    enhanceSelect($('kamTrendSelect'));
     document.querySelectorAll('#kamReportToggle button').forEach(btn=>{
       btn.addEventListener('click', ()=>{
         activePerfPeriod = btn.dataset.period;
@@ -881,6 +975,7 @@
       activeHubFilter = e.target.value;
       $('hubTrendWrap').innerHTML = renderHubTrendTable(issues, activePerfPeriod, activeHubFilter);
     });
+    enhanceSelect($('hubTrendSelect'));
     document.querySelectorAll('#hubReportToggle button').forEach(btn=>{
       btn.addEventListener('click', ()=>{
         activePerfPeriod = btn.dataset.period;

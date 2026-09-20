@@ -608,6 +608,7 @@
         <div>Ops: ${escapeHtml(info.ops_manager_name || '—')}</div>
         <div>Regional: ${escapeHtml(info.regional_manager_name || '—')}</div>
         <div>Cluster Lead: ${escapeHtml(info.cluster_lead_name || '—')}</div>
+        <div>Hub login: ${escapeHtml(info.hub_email || '—')}</div>
       ` : '<span style="color:var(--text-faint);">No assignment on file</span>';
       hubContactsCache[hub] = html;
       box.innerHTML = html;

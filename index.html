@@ -94,6 +94,12 @@
   .badge.progress{background:var(--gold-soft);color:var(--gold);}
   .badge.escalated{background:var(--accent-soft);color:var(--accent);}
   .badge.resolved{background:var(--green-soft);color:var(--green);}
+  .flag{font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px;display:inline-flex;align-items:center;gap:5px;white-space:nowrap;}
+  .flag.regular{background:var(--surface-2);color:var(--text-faint);}
+  .flag.attention{background:var(--gold-soft);color:var(--gold);}
+  .flag.flag-critical{background:#E0803322;color:#E08033;}
+  .flag.very-critical{background:var(--red);color:#fff;animation:flagPulse 1.6s ease-in-out infinite;}
+  @keyframes flagPulse{0%,100%{opacity:1;}50%{opacity:.6;}}
   .details-cell{max-width:220px;}
   .details-text{color:var(--text-dim);cursor:pointer;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
   .details-text.expanded{-webkit-line-clamp:unset;}
@@ -321,7 +327,7 @@
         <thead>
           <tr>
             <th>Logged</th><th>Consignment / Merchant</th><th>Channel</th><th>Zone</th>
-            <th>Hub</th><th>Category</th><th>Subcategory</th><th>Status</th><th>Logged by</th><th>Remarks</th><th>Details</th>
+            <th>Hub</th><th>Category</th><th>Subcategory</th><th>Status</th><th>Flag</th><th>Logged by</th><th>Remarks</th><th>Details</th>
           </tr>
         </thead>
         <tbody id="issueTableBody"></tbody>
@@ -375,6 +381,13 @@
 
   const $ = (id) => document.getElementById(id);
   const statusClass = (s) => s === 'Open' ? 'open' : s === 'In Progress' ? 'progress' : s === 'Escalated' ? 'escalated' : 'resolved';
+  const FLAG_CLASS = { 'Regular': 'regular', 'Need attention': 'attention', 'Critical': 'flag-critical', 'Very critical': 'very-critical', 'Resolved': null };
+  const FLAG_ICON = { 'Regular': '', 'Need attention': '🚩', 'Critical': '🚩', 'Very critical': '🚩' };
+  function renderFlag(i){
+    const cls = FLAG_CLASS[i.response_status];
+    if(!cls) return '—';
+    return `<span class="flag ${cls}">${FLAG_ICON[i.response_status]||''} ${escapeHtml(i.response_status)}</span>`;
+  }
 
   const ffCategory = $('ff-category');
   Object.keys(CATEGORY_MAP).forEach(cat=>{
@@ -636,6 +649,7 @@
         <td>${escapeHtml(i.category)}</td>
         <td>${escapeHtml(i.subcategory)}</td>
         <td><span class="badge ${statusClass(i.status)}">${escapeHtml(i.status)}</span></td>
+        <td>${renderFlag(i)}</td>
         <td>${escapeHtml(i.logged_by_name || i.logged_by)}</td>
         <td class="details-cell"><div class="details-text">${escapeHtml(i.remarks || '—')}</div></td>
         <td class="details-cell"><div class="details-text">${escapeHtml(i.details)}</div></td>

@@ -682,7 +682,7 @@
     $(emptyId).style.display = sorted.length ? 'none' : 'block';
     sorted.forEach(i=>{
       const tr = document.createElement('tr');
-      const canClose = i.status !== 'Resolved' && i.remarks && (i.logged_by || '').toLowerCase() === (authEmail || '').toLowerCase();
+      const canClose = i.remarks && !i.closed_by && (i.logged_by || '').toLowerCase() === (authEmail || '').toLowerCase();
       tr.innerHTML = `
         <td class="mono">${fmtTime(i.ts)}</td>
         <td>${escapeHtml(i.consignment)}</td>
@@ -699,7 +699,7 @@
         <td>${escapeHtml(i.logged_by_name || i.logged_by)}</td>
         <td class="details-cell"><div class="details-text">${escapeHtml(i.remarks || '—')}</div></td>
         <td class="details-cell"><div class="details-text">${escapeHtml(i.details)}</div></td>
-        <td>${canClose ? `<button class="ghost" data-role="close-btn">Close</button>` : (i.status === 'Resolved' ? '—' : '')}</td>
+        <td>${canClose ? `<button class="ghost" data-role="close-btn">Close</button>` : (i.closed_by ? '✓ Closed' : '—')}</td>
       `;
       tr.querySelector('.details-text').addEventListener('click', (e)=>{
         e.target.classList.toggle('expanded');

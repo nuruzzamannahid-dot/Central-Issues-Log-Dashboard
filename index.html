@@ -213,6 +213,19 @@
   #toggle:checked + svg #cloud{opacity:0;}
   #stars{opacity:0;}
   #toggle:checked + svg #stars{opacity:1;}
+
+  .modal-overlay{
+    position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:100;
+    display:flex;align-items:center;justify-content:center;padding:20px;
+  }
+  .modal-box{
+    background:var(--surface);border:1px solid var(--border);border-radius:14px;
+    padding:24px;max-width:360px;width:100%;box-shadow:0 20px 50px rgba(0,0,0,.3);
+  }
+  .modal-box h3{font-family:'Fraunces',serif;font-weight:500;margin:0 0 8px;font-size:19px;}
+  .modal-box p{margin:0 0 18px;color:var(--text-dim);font-size:14px;}
+  .modal-actions{display:flex;gap:10px;}
+  .modal-actions button{flex:1;}
 </style>
 </head>
 <body>
@@ -271,6 +284,19 @@
     </label>
   </header>
 
+  <div id="closeModalOverlay" class="modal-overlay" style="display:none;">
+    <div class="modal-box">
+      <h3>Close this issue?</h3>
+      <p>Did you confirm the update with the merchant?</p>
+      <div class="modal-actions">
+        <button class="ghost" id="closeModalNo">No</button>
+        <button class="primary" id="closeModalYes">Yes</button>
+      </div>
+      <button class="link" id="closeModalCancel" style="margin-top:10px;">Cancel</button>
+      <div style="margin-top:10px;"><span class="status-msg" id="closeModalMsg"></span></div>
+    </div>
+  </div>
+
   <div id="view-login" class="login-card">
     <p class="lede">Sign in with your Carrybee login to view the dashboard.</p>
     <form id="loginForm">
@@ -295,6 +321,7 @@
 
   <div class="tab-bar" id="mainTabs">
     <button class="tab-btn active" data-tab="issues" id="tabBtnIssues">Issues</button>
+    <button class="tab-btn" data-tab="flagged" id="tabBtnFlagged">Flagged</button>
     <button class="tab-btn" data-tab="performance" id="tabBtnPerformance">Performance</button>
   </div>
 
@@ -327,7 +354,7 @@
         <thead>
           <tr>
             <th>Logged</th><th>Consignment / Merchant</th><th>Channel</th><th>Zone</th>
-            <th>Hub</th><th>Category</th><th>Subcategory</th><th>Status</th><th>Flag</th><th>Logged by</th><th>Remarks</th><th>Details</th>
+            <th>Hub</th><th>Category</th><th>Subcategory</th><th>Status</th><th>Flag</th><th>Logged by</th><th>Remarks</th><th>Details</th><th>Actions</th>
           </tr>
         </thead>
         <tbody id="issueTableBody"></tbody>
@@ -335,6 +362,24 @@
     </div>
     <div id="emptyState" class="empty-state" style="display:none;">No issues match this filter yet.</div>
   </div>
+  </div>
+
+  <div id="panel-flagged" style="display:none;">
+    <div class="panel">
+      <h2>Flagged issues</h2>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Logged</th><th>Consignment / Merchant</th><th>Channel</th><th>Zone</th>
+              <th>Hub</th><th>Category</th><th>Subcategory</th><th>Status</th><th>Flag</th><th>Logged by</th><th>Remarks</th><th>Details</th><th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="flaggedTableBody"></tbody>
+        </table>
+      </div>
+      <div id="flaggedEmptyState" class="empty-state" style="display:none;">Nothing flagged right now — everything's on time.</div>
+    </div>
   </div>
 
   <div id="panel-performance" style="display:none;">
@@ -473,7 +518,7 @@
   async function authedFetch(path, opts={}){
     const res = await fetch(`${API_BASE}${path}`, {
       ...opts,
-      headers: { 'Authorization': `Bearer ${authToken}`, ...(opts.headers||{}) }
+      headers: { 'Content-Type':'application/json', 'Authorization': `Bearer ${authToken}`, ...(opts.headers||{}) }
     });
     if(res.status === 401){ doLogout(); throw new Error('Session expired'); }
     return res;
@@ -630,13 +675,14 @@
     }
   }
 
-  function renderTable(list){
-    const body = $('issueTableBody');
+  function renderTable(list, bodyId, emptyId){
+    const body = $(bodyId);
     body.innerHTML='';
     const sorted = [...list].sort((a,b)=> new Date(b.ts)-new Date(a.ts));
-    $('emptyState').style.display = sorted.length ? 'none' : 'block';
+    $(emptyId).style.display = sorted.length ? 'none' : 'block';
     sorted.forEach(i=>{
       const tr = document.createElement('tr');
+      const canClose = i.status !== 'Resolved' && i.remarks && (i.logged_by || '').toLowerCase() === (authEmail || '').toLowerCase();
       tr.innerHTML = `
         <td class="mono">${fmtTime(i.ts)}</td>
         <td>${escapeHtml(i.consignment)}</td>
@@ -653,6 +699,7 @@
         <td>${escapeHtml(i.logged_by_name || i.logged_by)}</td>
         <td class="details-cell"><div class="details-text">${escapeHtml(i.remarks || '—')}</div></td>
         <td class="details-cell"><div class="details-text">${escapeHtml(i.details)}</div></td>
+        <td>${canClose ? `<button class="ghost" data-role="close-btn">Close</button>` : (i.status === 'Resolved' ? '—' : '')}</td>
       `;
       tr.querySelector('.details-text').addEventListener('click', (e)=>{
         e.target.classList.toggle('expanded');
@@ -660,6 +707,9 @@
       const hubCell = tr.querySelector('.hub-cell');
       if(i.hub){
         hubCell.querySelector('.hub-link').addEventListener('click', ()=> toggleHubContacts(hubCell, i.hub));
+      }
+      if(canClose){
+        tr.querySelector('[data-role=close-btn]').addEventListener('click', ()=> openCloseModal(i.id));
       }
       body.appendChild(tr);
     });
@@ -669,8 +719,60 @@
     const filtered = applyFilters(allIssues);
     renderStats(filtered);
     renderBars(filtered);
-    renderTable(filtered);
+    renderTable(filtered, 'issueTableBody', 'emptyState');
+    if($('panel-flagged').style.display === 'block') renderFlagged();
   }
+
+  // ---------- Flagged tab ----------
+  const SEVERITY_RANK = { 'Very critical': 3, 'Critical': 2, 'Need attention': 1 };
+  function renderFlagged(){
+    const flagged = allIssues
+      .filter(i => SEVERITY_RANK[i.response_status])
+      .sort((a, b) => {
+        const rankDiff = SEVERITY_RANK[b.response_status] - SEVERITY_RANK[a.response_status];
+        if(rankDiff) return rankDiff;
+        return new Date(a.level_started_at || a.ts) - new Date(b.level_started_at || b.ts);
+      });
+    renderTable(flagged, 'flaggedTableBody', 'flaggedEmptyState');
+  }
+
+  // ---------- Close issue (with merchant-informed confirmation) ----------
+  let pendingCloseId = null;
+  function openCloseModal(id){
+    pendingCloseId = id;
+    $('closeModalMsg').textContent = '';
+    $('closeModalOverlay').style.display = 'flex';
+  }
+  function closeModalHide(){
+    $('closeModalOverlay').style.display = 'none';
+    pendingCloseId = null;
+  }
+  $('closeModalCancel').addEventListener('click', closeModalHide);
+  $('closeModalOverlay').addEventListener('click', (e)=>{
+    if(e.target.id === 'closeModalOverlay') closeModalHide();
+  });
+  async function confirmClose(merchantInformed){
+    if(!pendingCloseId) return;
+    const msgEl = $('closeModalMsg');
+    msgEl.textContent = 'Closing…'; msgEl.className = 'status-msg';
+    try{
+      const res = await authedFetch(`/api/issues/${encodeURIComponent(pendingCloseId)}/close`, {
+        method: 'PATCH',
+        body: JSON.stringify({ merchantInformed })
+      });
+      const data = await res.json();
+      if(!res.ok){
+        msgEl.textContent = data.error || 'Could not close issue.'; msgEl.classList.add('err');
+        return;
+      }
+      closeModalHide();
+      await loadAndRenderDashboard();
+    }catch(err){
+      msgEl.textContent = 'Could not reach the server.'; msgEl.classList.add('err');
+    }
+  }
+  $('closeModalYes').addEventListener('click', ()=> confirmClose('Yes'));
+  $('closeModalNo').addEventListener('click', ()=> confirmClose('No'));
 
   ['ff-channel','ff-zone','ff-category','ff-status'].forEach(id=>{
     $(id).addEventListener('change', renderDashboard);
@@ -702,14 +804,17 @@
   let activeHubFilter = 'all';
 
   function switchMainTab(tab){
-    const isPerf = tab === 'performance';
-    $('tabBtnIssues').classList.toggle('active', !isPerf);
-    $('tabBtnPerformance').classList.toggle('active', isPerf);
-    $('panel-issues').style.display = isPerf ? 'none' : 'block';
-    $('panel-performance').style.display = isPerf ? 'block' : 'none';
-    if(isPerf) renderPerformance(activePerfView);
+    $('tabBtnIssues').classList.toggle('active', tab === 'issues');
+    $('tabBtnFlagged').classList.toggle('active', tab === 'flagged');
+    $('tabBtnPerformance').classList.toggle('active', tab === 'performance');
+    $('panel-issues').style.display = tab === 'issues' ? 'block' : 'none';
+    $('panel-flagged').style.display = tab === 'flagged' ? 'block' : 'none';
+    $('panel-performance').style.display = tab === 'performance' ? 'block' : 'none';
+    if(tab === 'flagged') renderFlagged();
+    if(tab === 'performance') renderPerformance(activePerfView);
   }
   $('tabBtnIssues').addEventListener('click', ()=> switchMainTab('issues'));
+  $('tabBtnFlagged').addEventListener('click', ()=> switchMainTab('flagged'));
   $('tabBtnPerformance').addEventListener('click', ()=> switchMainTab('performance'));
   document.querySelectorAll('#perfSubTabs .tab-btn').forEach(btn=>{
     btn.addEventListener('click', ()=> renderPerformance(btn.dataset.view));
